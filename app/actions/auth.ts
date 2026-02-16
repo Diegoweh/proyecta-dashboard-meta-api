@@ -58,7 +58,18 @@ export async function signIn(
   redirect('/dashboard');
 }
 
-export async function signUp(formData: FormData) {
+type SignUpState = {
+  error?: {
+    email?: string[];
+    password?: string[];
+    general?: string;
+  };
+} | null;
+
+export async function signUp(
+  _prevState: SignUpState,
+  formData: FormData
+): Promise<SignUpState> {
   const rawData = {
     email: formData.get('email') as string,
     password: formData.get('password') as string,
