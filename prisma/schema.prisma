@@ -1,0 +1,188 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// User roles managed via Supabase auth metadata
+// This enum is for reference; actual role is stored in auth.users metadata
+
+enum UserRole {
+  ADMIN
+  VIEWER
+}
+
+enum SyncStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+// Meta Ad Accounts
+model MetaAccount {
+  id               String    @id // Meta account ID
+  name             String
+  currency         String
+  timezone         String
+  accessToken      String?   @db.Text // Encrypted/optional per-account token
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  campaigns        MetaCampaign[]
+  adsets           MetaAdset[]
+  ads              MetaAd[]
+  insights         MetaInsightDaily[]
+
+  @@index([isActive])
+}
+
+// Campaigns
+model MetaCampaign {
+  id               String    @id // Meta campaign ID
+  accountId        String
+  name             String
+  status           String    // ACTIVE, PAUSED, DELETED, etc.
+  objective        String?
+  createdTime      DateTime?
+  startTime        DateTime?
+  stopTime         DateTime?
+  updatedTime      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  account          MetaAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  adsets           MetaAdset[]
+  insights         MetaInsightDaily[]
+
+  @@index([accountId])
+  @@index([status])
+  @@index([updatedTime])
+}
+
+// Ad Sets
+model MetaAdset {
+  id               String    @id // Meta adset ID
+  accountId        String
+  campaignId       String
+  name             String
+  status           String
+  targeting        Json?     // Store targeting criteria as JSON
+  billingEvent     String?
+  optimizationGoal String?
+  bidAmount        Int?      // in cents
+  createdTime      DateTime?
+  startTime        DateTime?
+  endTime          DateTime?
+  updatedTime      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  account          MetaAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  campaign         MetaCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  ads              MetaAd[]
+  insights         MetaInsightDaily[]
+
+  @@index([accountId])
+  @@index([campaignId])
+  @@index([status])
+  @@index([updatedTime])
+}
+
+// Ads
+model MetaAd {
+  id               String    @id // Meta ad ID
+  accountId        String
+  adsetId          String
+  campaignId       String?
+  name             String
+  status           String
+  creative         Json?     // Store creative details as JSON
+  createdTime      DateTime?
+  updatedTime      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  account          MetaAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  adset            MetaAdset    @relation(fields: [adsetId], references: [id], onDelete: Cascade)
+  insights         MetaInsightDaily[]
+
+  @@index([accountId])
+  @@index([adsetId])
+  @@index([status])
+  @@index([updatedTime])
+}
+
+// Daily insights at ad level (most granular)
+// Can aggregate up to adset/campaign/account level
+model MetaInsightDaily {
+  id               String    @id @default(cuid())
+  accountId        String
+  campaignId       String?
+  adsetId          String?
+  adId             String?
+  date             DateTime  @db.Date
+
+  // Metrics
+  impressions      BigInt    @default(0)
+  reach            BigInt    @default(0)
+  clicks           Int       @default(0)
+  linkClicks       Int       @default(0)
+  spend            Decimal   @default(0) @db.Decimal(12, 2)
+  cpc              Decimal   @default(0) @db.Decimal(12, 4)
+  cpm              Decimal   @default(0) @db.Decimal(12, 4)
+  ctr              Decimal   @default(0) @db.Decimal(8, 4)
+  frequency        Decimal   @default(0) @db.Decimal(8, 4)
+
+  // Conversions
+  actions          Json?     // Array of action types and values
+  actionValues     Json?     // Array of action values (revenue)
+  purchases        Int       @default(0)
+  purchaseValue    Decimal   @default(0) @db.Decimal(12, 2)
+  roas             Decimal   @default(0) @db.Decimal(8, 4)
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  account          MetaAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  campaign         MetaCampaign? @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adset            MetaAdset?    @relation(fields: [adsetId], references: [id], onDelete: Cascade)
+  ad               MetaAd?       @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@unique([adId, date])
+  @@index([accountId, date])
+  @@index([campaignId, date])
+  @@index([adsetId, date])
+  @@index([date])
+}
+
+// Sync runs tracking
+model SyncRun {
+  id               String      @id @default(cuid())
+  status           SyncStatus  @default(PENDING)
+  startedAt        DateTime    @default(now())
+  finishedAt       DateTime?
+  error            String?     @db.Text
+
+  // Stats
+  accountsCount    Int         @default(0)
+  campaignsCount   Int         @default(0)
+  adsetsCount      Int         @default(0)
+  adsCount         Int         @default(0)
+  insightsCount    Int         @default(0)
+
+  // Metadata
+  triggeredBy      String?     // user email or "cron"
+  metadata         Json?       // Additional sync parameters
+
+  @@index([status])
+  @@index([startedAt])
+}
