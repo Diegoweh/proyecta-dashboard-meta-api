@@ -1,6 +1,8 @@
 import { requireAuth } from '@/lib/auth';
 import { Nav } from '@/components/nav';
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardLayout({
   children,
 }: {

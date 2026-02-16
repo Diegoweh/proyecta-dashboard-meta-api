@@ -1,6 +1,8 @@
 import { requireAdmin } from '@/lib/auth';
 import { getSyncHistory } from '@/app/actions/sync';
 import { SyncButton } from '@/components/admin/sync-button';
+
+export const dynamic = 'force-dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
