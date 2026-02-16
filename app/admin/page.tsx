@@ -17,7 +17,7 @@ export default async function AdminPage() {
   await requireAdmin();
 
   const result = await getSyncHistory(20);
-  const syncRuns = result.success ? result.data : [];
+  const syncRuns = (result.success ? result.data : undefined) ?? [];
 
   return (
     <div className="space-y-6">
